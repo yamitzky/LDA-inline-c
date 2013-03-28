@@ -21,7 +21,7 @@ if __name__ == "__main__":
         n = int(f.readline())
         lines = f.read().rstrip().split("\n")
 
-    # lines = lines[:100000]
+    # lines = lines[:10000]
     if len(lines) != n:
         # when sliced lines
         W = max([int(line.split(" ")[1]) for line in lines])
@@ -106,13 +106,27 @@ if __name__ == "__main__":
         weave.inline(code, ['n_v_j', 'n_d_j', 'n_j', 'n_d', 'beta', 'alpha', 'W', 'T', 'z', 'n', 'd_v_length'], type_converters=weave.converters.blitz, compiler="gcc")
 
 
-    phi_j_v = numpy.array((T,W))
-    phi_j_v[j,v] = (n_v_j[v,j] + beta) / (n_j[j] + W * beta)
+    print "iteration end"
+    print "=== phi_j_v ==="
+    n_j_v = n_v_j.T
+    _n_j = n_j[:, numpy.newaxis] # transposition
+    phi_j_v = (n_j_v + beta) / (_n_j + W * beta)
+    topic_vocabs = []
     for j in range(T):
-        phi_j_sorted = sorted(phi_j)
-        phi_j_sorted = phi_j_sorted[-5:]
-        indexies = [phi_j.index(phi) for phi in phi_j_sorted]
-        vs = [vocabularies[i] for i in indexies]
-        print vs
-    print "======="
+        phi_j = phi_j_v[j]
+        indices = phi_j.argsort()[::-1][:5]
+        vocabs = ["%s:%.5f" % (vocabularies[i], phi_j[i]) for i in indices]
+        topic_vocabs.append([vocabularies[i] for i in indices])
+        print "  ".join(vocabs)
+
+    print "=== theta_d_j ==="
+    _n_d = n_d[:, numpy.newaxis] # transposition
+    theta_d_j = (n_d_j + alpha) / (_n_d + T * alpha)
+    for d in range(10):
+        _d = D / 10 * d
+        theta_d = theta_d_j[_d]
+        j = theta_d.argmax()
+        print "%u: %.5f" % (_d, theta_d[j])
+        print theta_d
+        print topic_vocabs[j]
 
