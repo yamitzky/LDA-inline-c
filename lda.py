@@ -19,12 +19,14 @@ if __name__ == "__main__":
         D = int(f.readline())
         W = int(f.readline())
         n = int(f.readline())
-        lines = f.read().split("\n") # TODO: delete slicing
+        lines = f.read().rstrip().split("\n")
 
-    lines = lines[:-1]
-    W = max([int(line.split(" ")[1]) for line in lines])
-    D = int(lines[-1].split(" ")[0])
-    n = len(lines)
+    # lines = lines[:100000]
+    if len(lines) != n:
+        # when sliced lines
+        W = max([int(line.split(" ")[1]) for line in lines])
+        D = int(lines[-1].split(" ")[0])
+        n = len(lines)
 
     T = 15
     z = numpy.random.randint(0, high=T, size=n)
