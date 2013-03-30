@@ -3,7 +3,7 @@
 import numpy
 import scipy
 import scipy.weave as weave
-from random import random
+import random
 from datetime import datetime
 
 seed = 12345
@@ -19,11 +19,12 @@ class LDA:
         self.W = W
         self.D = D
         if not N:
-            self.N = len(d_v_length)
+            self.N = len(self.d_v_length)
+            print self.N
         if not W:
-            self.W = max([v for d, v, length in d_v_length])
+            self.W = int(max(self.d_v_length[:,1])) + 1
         if not D:
-            self.D = max([d for d, v, length in d_v_length])
+            self.D = int(max(self.d_v_length[:,0])) + 1
         self.z = numpy.random.randint(0, high=self.T, size=self.N)
         self.initial_count()
 
@@ -53,18 +54,18 @@ class LDA:
         N = self.N
         weave.inline(code, ['d_v_length', 'z', 'n_D_T', 'n_W_T', 'n_D', 'n_T', 'N'], type_converters=weave.converters.blitz)
 
-    def train(self):
+    def train(self, validation=None):
         print "iter start"
         d = datetime.now()
         c = 0
         while True:
             c += 1
             if c % 10 == 0:
-                self.perplexity()
+                self.perplexity(validation)
                 print c
                 print datetime.now() - d
                 print "-----"
-            if c % 1000 == 0:
+            if c == 150:
                 break
             code = """
             for (int i = 0; i < N; i++) {
@@ -120,11 +121,11 @@ class LDA:
         print "iter end"
 
     def perplexity(self, d_v_length=None):
-        if not d_v_length:
+        if d_v_length != None:
+            N = len(d_v_length)
+        else:
             d_v_length = self.d_v_length
             N = self.N
-        else:
-            N = len(d_v_length)
 
         phi_T_W = self.MAP_phi()
         theta_D_T = self.MAP_theta()
@@ -166,19 +167,29 @@ if __name__ == "__main__":
         N = int(f.readline())
         lines = f.read().rstrip().split("\n")
 
-    # lines = lines[:10000]
-    if len(lines) != N:
-        # when slicing
-        D = None
-        W = None
-        N = None
+    # lines = lines[:100434] # slicing for debugging
 
     print "init start"
     dec = lambda t: (t[0]-1, t[1]-1, t[2])
     d_v_length = [dec(map(int, line.split(" "))) for line in lines]
 
+    # extracting for validation
+    print "extracting for validation"
+    N = len(d_v_length)
+    indices = set(xrange(N))
+    validation_indices = set(random.sample(indices, N / 10))
+    d_v_length = numpy.array(d_v_length)
+    d_v_l_validation = d_v_length[tuple(validation_indices),]
+    d_v_length = d_v_length[tuple(indices - validation_indices),]
+    if len(d_v_length) != N:
+        # when slicing, D, W, and N may be wrong
+        D = None
+        W = None
+        N = None
+
+    print "instanciate LDA"
     lda = LDA(d_v_length, vocabularies, T=15, alpha=0.5, beta=0.5, N=N, W=W, D=D)
-    lda.train()
+    lda.train(d_v_l_validation)
 
     print "=== phi_j_v ==="
     phi_T_W = lda.MAP_phi()
@@ -193,7 +204,7 @@ if __name__ == "__main__":
     print "=== theta_d_j ==="
     theta_D_T = lda.MAP_theta()
     for d in range(10):
-        _d = D / 10 * d
+        _d = lda.D / 10 * d
         theta_d = theta_D_T[_d]
         j = theta_d.argmax()
         print "%u: %.5f" % (_d, theta_d[j])
