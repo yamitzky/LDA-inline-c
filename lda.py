@@ -26,6 +26,12 @@ class LDA:
         if not D:
             self.D = int(max(self.d_v_length[:,0])) + 1
         self.z = numpy.random.randint(0, high=self.T, size=self.N)
+
+        with open("perplexity.embed.cpp") as f:
+            self.perplexity_code = f.read()
+        with open("train.embed.cpp") as f:
+            self.train_code = f.read()
+
         self.initial_count()
 
     def initial_count(self):
@@ -33,18 +39,6 @@ class LDA:
         self.n_W_T = numpy.zeros((self.W, self.T), dtype=int)
         self.n_D = numpy.zeros(self.D, dtype=int)
         self.n_T = numpy.zeros(self.T, dtype=int)
-        code = """
-        for(int i = 0; i < N; i++) {
-            int d = d_v_length(i,0);
-            int v = d_v_length(i,1);
-            int length = d_v_length(i,2);
-            int j = z(i);
-            n_D_T(d,j) += length;
-            n_W_T(v,j) += length;
-            n_D(d) += length;
-            n_T(j) += length;
-        }
-        """
         d_v_length = self.d_v_length
         z = self.z
         n_D_T = self.n_D_T
@@ -52,6 +46,8 @@ class LDA:
         n_D = self.n_D
         n_T = self.n_T
         N = self.N
+        with open("initial_count.embed.cpp") as f:
+            code = f.read()
         weave.inline(code, ['d_v_length', 'z', 'n_D_T', 'n_W_T', 'n_D', 'n_T', 'N'], type_converters=weave.converters.blitz)
 
     def train(self, validation=None):
@@ -67,44 +63,6 @@ class LDA:
                 print "-----"
             if c == 150:
                 break
-            code = """
-            for (int i = 0; i < N; i++) {
-                float Q_i[T];
-                int z_i = z(i);
-                int d = d_v_length(i, 0);
-                int v = d_v_length(i, 1);
-                int length = d_v_length(i, 2);
-                for(int j = 0; j < T; j++) {
-                    int n_v_j_i = n_W_T(v,j);
-                    int n_d_j_i = n_D_T(d,j);
-                    int n_j_i = n_T(j);
-                    int n_d_i = n_D(d) - length;
-                    if (z_i == j) {
-                      n_v_j_i -= length;
-                      n_d_j_i -= length;
-                      n_j_i -= length;
-                    }
-                    double q_i = (n_v_j_i + beta) * (n_d_j_i + alpha) /
-                            (n_j_i + W * beta) / (n_d_i + T * alpha);
-                    double Q_i_sum = (j > 0)? Q_i[j-1] : 0;
-                    Q_i[j] = Q_i_sum + q_i;
-                }
-                float u = random() / (float)RAND_MAX;
-                int j;
-                for (j = 0; j < T; j++) {
-                    if(Q_i[j] / Q_i[T-1] >= u) break;
-                }
-                if (z_i != j) {
-                    z(i) = j;
-                    n_D_T(d,z_i) -= length;
-                    n_W_T(v,z_i) -= length;
-                    n_T(z_i) -= length;
-                    n_D_T(d,j) += length;
-                    n_W_T(v,j) += length;
-                    n_T(j) += length;
-                }
-            }
-            """
             n_W_T = self.n_W_T
             n_D_T = self.n_D_T
             n_D = self.n_D
@@ -117,7 +75,7 @@ class LDA:
             N = self.N
             d_v_length = self.d_v_length
 
-            weave.inline(code, ['n_W_T', 'n_D_T', 'n_D', 'n_T', 'beta', 'alpha', 'W', 'T', 'z', 'N', 'd_v_length'], type_converters=weave.converters.blitz, compiler="gcc")
+            weave.inline(self.train_code, ['n_W_T', 'n_D_T', 'n_D', 'n_T', 'beta', 'alpha', 'W', 'T', 'z', 'N', 'd_v_length'], type_converters=weave.converters.blitz, compiler="gcc")
         print "iter end"
 
     def perplexity(self, d_v_length=None):
@@ -129,22 +87,8 @@ class LDA:
 
         phi_T_W = self.MAP_phi()
         theta_D_T = self.MAP_theta()
-        code = """
-        float perp = 0.0;
-        for (int i = 0; i < N; i++) {
-          int d = d_v_length(i, 0);
-          int v = d_v_length(i, 1);
-          int length = d_v_length(i, 0);
-          float p = 0.0;
-          for (int j = 0; j < T; j++) {
-            p += theta_D_T(d, j) * phi_T_W(j, v);
-          }
-          perp -= log(p);
-        }
-        return_val = exp(perp / N);
-        """
         T = self.T
-        result = weave.inline(code, ['d_v_length', 'phi_T_W', 'theta_D_T', 'T', 'N'], type_converters=weave.converters.blitz)
+        result = weave.inline(self.perplexity_code, ['d_v_length', 'phi_T_W', 'theta_D_T', 'T', 'N'], type_converters=weave.converters.blitz)
         print "Perp: %.3f" % result
 
     def MAP_theta(self):
