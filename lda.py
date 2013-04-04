@@ -56,11 +56,8 @@ class LDA:
         c = 0
         while True:
             c += 1
-            if c % 10 == 0:
-                self.perplexity(validation)
-                print c
-                print datetime.now() - d
-                print "-----"
+            perp = self.perplexity(validation)
+            print "%d,%f" % (c,perp)
             if c == 150:
                 break
             n_W_T = self.n_W_T
@@ -89,7 +86,7 @@ class LDA:
         theta_D_T = self.MAP_theta()
         T = self.T
         result = weave.inline(self.perplexity_code, ['d_v_length', 'phi_T_W', 'theta_D_T', 'T', 'N'], type_converters=weave.converters.blitz)
-        print "Perp: %.3f" % result
+        return result
 
     def MAP_theta(self):
         _n_D = self.n_D[:, numpy.newaxis] # transposition
