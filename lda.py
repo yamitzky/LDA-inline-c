@@ -4,6 +4,7 @@ import numpy
 import scipy
 import scipy.weave as weave
 import random
+import math
 from datetime import datetime
 from itertools import groupby
 
@@ -54,12 +55,15 @@ class LDA:
         print "iter start"
         d = datetime.now()
         c = 0
+        perp_before = None
         while True:
             c += 1
             perp = self.perplexity(w_N_test)
             print "%d,%f" % (c,perp)
-            if c == 150:
+            if perp_before and math.fabs(perp_before - perp) < 0.1:
                 break
+            perp_before = perp
+
             n_W_T = self.n_W_T
             n_D_T = self.n_D_T
             n_D = self.n_D
